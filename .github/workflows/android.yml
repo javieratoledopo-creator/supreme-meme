@@ -1,0 +1,67 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Project
+        run: |
+          TARFILE=$(find . -name "*.tar.gz" | head -n 1)
+
+          if [ -z "$TARFILE" ]; then
+            echo "No se encontró ningún archivo .tar.gz"
+            exit 1
+          fi
+
+          mkdir project
+          tar -xzf "$TARFILE" -C project
+
+      - name: Find Gradle Wrapper
+        id: gradle
+        run: |
+          GRADLEW=$(find project -type f -name gradlew | head -n 1)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "No se encontró gradlew"
+            find project
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$(dirname "$GRADLEW")" >> $GITHUB_ENV
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant Permission
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: chmod +x gradlew
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-APK
+          path: |
+            project/**/build/outputs/apk/**/*.apk
+            project/**/*.apk
+            
